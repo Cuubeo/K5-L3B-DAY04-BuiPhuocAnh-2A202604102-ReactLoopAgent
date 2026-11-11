@@ -51,14 +51,30 @@ Nguyên nhân có thể xảy ra:
 
 | Chỉ số | `eval_before.json` | `eval_after.json` |
 |---|---|---|
-| Điểm tổng |  |  |
-| Điểm case đã chọn |  |  |
-| Số model calls |  |  |
-| Token, chi phí nếu có |  |  |
+Cùng cấu hình ở cả hai lần: agent và judge `openrouter / openai/gpt-4o-mini`, `max_steps = 8`, dataset `core`, snapshot cố định (khối `config` giống hệt nhau).
+
+| Chỉ số | `eval_before.json` | `eval_after.json` |
+|---|---|---|
+| Điểm tổng | 78.14 (22/22 case đã chấm) | 79.77 (22/22 case đã chấm) |
+| Điểm case đã chọn | H1: 60 (H6: 60) | H1: 80 (H6: 75) |
+| Số model calls (agent) | 52 | 54 |
+| Token, chi phí nếu có | agent: 33.510 prompt + 9.411 completion; ≈ $0.0104 (judge: 42.062 token) | agent: 42.124 prompt + 9.473 completion; ≈ $0.0113 (judge: 39.414 token) |
 
 - Lỗi đã giải quyết:
+  - **H1**: trace lần 2 có event `validation_unfollowed_reference` ở step 2 → model gọi tiếp `get_incident_details(github, xr3myzj7ms51)` → trả lời ở step 4. Vi phạm "Cần tool calls ở ít nhất 2 model steps khác nhau" không còn, `score_cap` từ 60 lên 100, điểm 60 → 80.
+  - **H6**: cùng cơ chế, đọc thêm `xr3myzj7ms51`, hết vi phạm, điểm 60 → 75.
+  - Không case nào bị `max_steps` vì kiểm tra mới (chỉ nhắc khi còn ≥ 2 bước).
 - Lỗi còn lại hoặc mới xuất hiện:
+  - H1 vẫn chưa 100: judge nhận xét chưa kết luận rõ hai incident có liên quan hay không và chưa nêu dữ liệu có thể bị cắt.
+  - **H2: 100 → 50 (mới)**: lần này model chỉ gọi `get_incident_details` mà không gọi `get_status`, nên kiểm tra bằng code báo "Chưa gọi tool cần thiết: get_status". Thay đổi của tôi không chặn điều này; có thể chỉ dẫn mới trong prompt khiến model ưu tiên đọc incident, hoặc chỉ là dao động giữa các lần chạy, cần chạy thêm để kết luận.
+  - A5 vẫn thấp (60): vẫn khẳng định "không có incident năm 2025" từ kết quả tìm kiếm giới hạn trong 50 incident.
+  - Chi phí: prompt token của agent tăng khoảng 26% (thêm lượt nhắc và tool result của incident được dẫn tới), số model calls +2.
 
 ## 5. Giới hạn
 
 Nêu giới hạn của điểm judge, của snapshot và của việc chỉ chạy một lần mỗi phiên bản.
+
+- **Điểm judge**: judge dùng cùng model với agent (gpt-4o-mini), có thể thiên lệch và nhiễu. Ví dụ: lần chạy đầu tiên của eval_before, judge trả JSON lỗi ở E1 (case bị `unscored`, phải chạy lại); ở A4 judge trừ điểm URL `stspg.io/pjgptg3cfc6n` dù `expected` chấp nhận URL này; H4 (bài thơ, không đổi gì liên quan) dao động 100 → 80.
+- **Chạy một lần mỗi phiên bản**: chính eval_before chạy hai lần với cùng code và cấu hình đã cho điểm khác nhau nhiều (E4 75 → 95, A2 70 → 100, A5 55 → 35). Vì vậy chênh lệch tổng +1.63 điểm (78.14 → 79.77) **nằm trong mức nhiễu**, không chứng minh agent tốt hơn ổn định. Bằng chứng đáng tin hơn là thay đổi cơ học trong trace của H1/H6 (có thêm tool step, hết vi phạm `min_tool_steps`).
+- **Snapshot**: dữ liệu chụp lúc `2026-11-09T03:50Z`, chỉ 50 incident gần nhất mỗi provider; kết quả không phản ánh trạng thái hiện tại, và tìm không thấy không chứng minh không có incident.
+- **Giới hạn của thay đổi**: chỉ theo liên kết dạng `githubstatus.com|cloudflarestatus.com/incidents/<id>` (không theo shortlink `stspg.io` hay mô tả bằng chữ), chỉ nhắc một lần; kiểm tra URL chỉ xác nhận có ít nhất một URL incident trong câu trả lời, không chứng minh mọi claim đều có nguồn.
