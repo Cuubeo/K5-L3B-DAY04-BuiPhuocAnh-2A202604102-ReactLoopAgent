@@ -1,7 +1,7 @@
 # Ghi chú phân tích · Day 04
 
-Họ và tên:
-MSSV:
+Họ và tên: Bùi Phước Anh
+MSSV: 2A202604102
 
 ## 1. Case được chọn
 
